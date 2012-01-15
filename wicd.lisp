@@ -59,23 +59,25 @@
   "connect wicd to the specified network"
   (let ((args (if (equalp network-number *wicd-wired-network-name*)
                   '("--wired" "-c")
-                `("--wireless" "-c" "-n" ,network-number))))
+                  `("--wireless" "-c" "-n" ,network-number))))
     (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
     (setf *wicd-connection-status-output* (make-string-output-stream))
     (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
-      (setf *wicd-connection-status-timer* (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
+      (setf *wicd-connection-status-timer*
+            (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
 
 (defun monitor-wicd-connection-status (proc-var)
   (loop for line = (handler-case (read-line
                                   #+sbcl (sb-ext:process-pty proc-var)
                                   #+ccl  (ccl:process-output proc-var)
                                   nil nil)
-                                 (stream-error (e)))
+                     (stream-error (e)))
         for status = (concatenate 'string "^[^" (write-to-string *wicd-current-network-color*)
-                                  "*Status: (if dhcp or validation takes long, check your settings)^]" (string #\Newline) line)
-        then (concatenate 'string status (string #\Newline) line)
+                                  "*Status: (if dhcp or validation takes long, check your settings)^]"
+                                  (string #\Newline) line)
+          then (concatenate 'string status (string #\Newline) line)
         while line do
-        (message "~A" status))
+          (message "~A" status))
   #+sbcl
   (unless (sb-ext:process-alive-p proc-var)
     (setf (timer-repeat *wicd-connection-status-timer*) nil))
@@ -91,7 +93,10 @@
   (let ((current-essid (get-wicd-current-essid)))
     (mapcar (lambda (v) (let ((essid (elt v 1))
                          (num   (elt v 0)))
-                     (list (concat "^[" (if (equalp essid current-essid) (concat "^" (write-to-string *wicd-current-network-color*) "*") "")
+                     (list (concat "^["
+                                   (if (equalp essid current-essid)
+                                       (concat "^" (write-to-string *wicd-current-network-color*) "*")
+                                       "")
                                    essid "^] "
                                    (unless (equalp essid *wicd-wired-network-name*)
                                      (concat
@@ -99,19 +104,25 @@
                                       (get-wicd-network-property num "quality") "%")))
                            (elt v 0))))
             (append `((,*wicd-wired-network-name* ,*wicd-wired-network-name*))
-                    (mapcar (lambda (s) (nth-value 1 (cl-ppcre:scan-to-strings "(\\d\\d?)\\s+\\S\\S(?::\\S\\S){5}\\s+\\d\\d?\\s+(\\w.+)" s)))
+                    (mapcar (lambda (s)
+                              (nth-value 1 (cl-ppcre:scan-to-strings
+                                            "(\\d\\d?)\\s+\\S\\S(?::\\S\\S){5}\\s+\\d\\d?\\s+(\\w.+)" s)))
                             (rest (split-string wicd-cache-string)))))))
 
 (defun get-wicd-network-property (network-number property)
   (string-trim '(#\Space #\Newline #\Linefeed #\Tab)
-               (run-shell-command (concat "wicd-cli --wireless -p " property " -n " network-number) t)))
+               (run-shell-command
+                (concat "wicd-cli --wireless -p " property " -n " network-number)
+                t)))
 
 (defun get-wicd-current-essid ()
   (if (= 0 (length (run-shell-command "wicd-cli --wired -d" t)))
       (let ((output (run-shell-command "wicd-cli --wireless -d" t)))
         (unless (cl-ppcre:scan "^Invalid|^IP: None" output)
-          (elt (nth-value 1 (cl-ppcre:scan-to-strings "Essid: (\\S+)" (cl-ppcre:regex-replace-all "\\s+" output " ")))
+          (elt (nth-value 1 (cl-ppcre:scan-to-strings
+                             "Essid: (\\S+)"
+                             (cl-ppcre:regex-replace-all "\\s+" output " ")))
                0)))
-    *wicd-wired-network-name*))
+      *wicd-wired-network-name*))
 
 ;;; End of file
