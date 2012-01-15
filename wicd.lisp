@@ -41,22 +41,26 @@
   (run-shell-command "wicd-cli -x"))
 
 (defcommand wicd-scan-and-connect () ()
+  "Scans for networks and then presents menu of possibilities"
   (message "Scanning for list of networks...")
   (wicd-c (run-shell-command "wicd-cli --wireless -Sl" t)))
 
 (defcommand wicd-connect () ()
+  "Presents menu of possibilities based on most recent scan"
   (message "Retrieving list of networks...")
   (wicd-c (run-shell-command "wicd-cli --wireless -l" t)))
 
 (defun wicd-c (wicd-cache-string)
-  "Allow the user to select a network from a list"
+  "Allow the user to select a network from a list
+Expects WICD-CACHE-STRING formatted as from wicd-cli -l output"
   (let ((network (second (select-from-menu
                           (current-screen)
                           (build-wicd-network-list wicd-cache-string)))))
     (when network (connect-wicd network))))
 
 (defun connect-wicd (network-number)
-  "connect wicd to the specified network"
+  "connect wicd to the specified network by wicd number
+NETWORK-NUMBER expects a sequence"
   (let ((args (if (equalp network-number *wicd-wired-network-name*)
                   '("--wired" "-c")
                   `("--wireless" "-c" "-n" ,network-number))))
@@ -67,6 +71,8 @@
             (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
 
 (defun monitor-wicd-connection-status (proc-var)
+  "expects PROC-VAR a process structure / object implementation
+collects process output and displays it line by line in a message"
   (loop for line = (handler-case (read-line
                                   #+sbcl (sb-ext:process-pty proc-var)
                                   #+ccl  (ccl:process-output proc-var)
@@ -90,6 +96,7 @@
     (message "~A" "Connecting, status monitoring unimplemented for your lisp implementation ...")))
 
 (defun build-wicd-network-list (wicd-cache-string)
+  "builds a list from wicd-cli -l output suitable for use with select-from-menu"
   (let ((current-essid (get-wicd-current-essid)))
     (mapcar (lambda (v) (let ((essid (elt v 1))
                          (num   (elt v 0)))
