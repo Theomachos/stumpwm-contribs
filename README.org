@@ -1,0 +1,11 @@
+Stumpwm helpers etc.
+
+* wicd
+The wicd commands are as follows:
+- wicd-connect --- provides a menu to select the desired network
+- wicd-disconnect --- disconnect from whatever is currently active
+- wicd-scan-and-connect --- performs wireless scan first, then supplies menu prompt
+  
+The basic functions should be portable. Additionally there is a status
+report that displays after attempting a new connection, but it is only
+provided for sbcl and ccl currently.
