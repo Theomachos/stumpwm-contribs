@@ -113,7 +113,7 @@ collects process output and displays it line by line in a message"
             (append `((,*wicd-wired-network-name* ,*wicd-wired-network-name*))
                     (mapcar (lambda (s)
                               (nth-value 1 (cl-ppcre:scan-to-strings
-                                            "(\\d\\d?)\\s+\\S\\S(?::\\S\\S){5}\\s+\\d\\d?\\s+(\\S.+)" s)))
+                                            "(\\d\\d?)\\s+\\S\\S(?::\\S\\S){5}\\s+\\d+\\s+(\\S.+)" s)))
                             (rest (split-string wicd-cache-string)))))))
 
 (defun get-wicd-network-property (network-number property)
