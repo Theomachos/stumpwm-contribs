@@ -59,7 +59,7 @@
   "connect wicd to the specified network"
   (let ((args (if (equalp network-number *wicd-wired-network-name*)
                   '("--wired" "-c")
-                  `("--wireless" "-c" "-n" ,network-number))))
+                `("--wireless" "-c" "-n" ,network-number))))
     (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
     (setf *wicd-connection-status-output* (make-string-output-stream))
     (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
@@ -112,6 +112,6 @@
         (unless (cl-ppcre:scan "^Invalid|^IP: None" output)
           (elt (nth-value 1 (cl-ppcre:scan-to-strings "Essid: (\\S+)" (cl-ppcre:regex-replace-all "\\s+" output " ")))
                0)))
-      *wicd-wired-network-name*))
+    *wicd-wired-network-name*))
 
 ;;; End of file
