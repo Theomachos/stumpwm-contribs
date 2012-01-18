@@ -85,7 +85,8 @@ collects process output and displays it line by line in a message"
   (unless
     #+sbcl (sb-ext:process-alive-p proc-var)
     #+ccl  (not (ccl:process-exhausted-p proc-var))
-    (setf (timer-repeat *wicd-connection-status-timer*) nil))
+    (setf (timer-repeat *wicd-connection-status-timer*) nil)
+    (message "~A" (concat *wicd-connection-status-output* (string #\Newline) "wicd-cli finished")))
   #-(or ccl sbcl)
   (progn
     (setf (timer-repeat *wicd-connection-status-timer*) nil)
