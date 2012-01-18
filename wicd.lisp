@@ -35,6 +35,7 @@
 (defvar *wicd-wired-network-name* "wired" "What to call the wired network in the menu")
 (defvar *wicd-cli-program-path* "/usr/bin/wicd-cli" "Path to the wicd-cli executable script")
 (defvar *wicd-connection-status-timer* nil "Monitors output when attempting to connect to a network")
+(defvar *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
 
 (defcommand wicd-disconnect () ()
   "disconnect wicd"
@@ -64,8 +65,8 @@ NETWORK-NUMBER expects a sequence"
   (let ((args (if (equalp network-number *wicd-wired-network-name*)
                   '("--wired" "-c")
                   `("--wireless" "-c" "-n" ,network-number))))
+    (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
     (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
-    (setf *wicd-connection-status-output* (make-string-output-stream))
     (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
       (setf *wicd-connection-status-timer*
             (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
@@ -73,22 +74,17 @@ NETWORK-NUMBER expects a sequence"
 (defun monitor-wicd-connection-status (proc-var)
   "expects PROC-VAR a process structure / object implementation
 collects process output and displays it line by line in a message"
-  (loop for line = (handler-case (read-line
-                                  #+sbcl (sb-ext:process-pty proc-var)
-                                  #+ccl  (ccl:process-output proc-var)
-                                  nil nil)
-                     (stream-error (e)))
-        for status = (concatenate 'string "^[^" (write-to-string *wicd-current-network-color*)
-                                  "*Status: (if dhcp or validation takes long, check your settings)^]"
-                                  (string #\Newline) line)
-          then (concatenate 'string status (string #\Newline) line)
-        while line do
-          (message "~A" status))
-  #+sbcl
-  (unless (sb-ext:process-alive-p proc-var)
-    (setf (timer-repeat *wicd-connection-status-timer*) nil))
-  #+ccl
-  (when (ccl:process-exhausted-p proc-var)
+  (setf *wicd-connection-status-output*
+        (concat *wicd-connection-status-output* (string #\Newline)
+                (handler-case (read-line
+                               #+sbcl (sb-ext:process-pty proc-var)
+                               #+ccl  (ccl:process-output proc-var)
+                               nil nil)
+                              (stream-error (e)))))
+  (message "~A" *wicd-connection-status-output*)
+  (unless
+    #+sbcl (sb-ext:process-alive-p proc-var)
+    #+ccl  (not (ccl:process-exhausted-p proc-var))
     (setf (timer-repeat *wicd-connection-status-timer*) nil))
   #-(or ccl sbcl)
   (progn
