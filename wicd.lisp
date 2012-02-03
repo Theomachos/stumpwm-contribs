@@ -90,9 +90,9 @@
   "displays basic connection status information"
   (cond
     ((wicd-wireless-command "CheckIfWirelessConnecting")
-     (message-no-timeout "connecting wireless..."))
+     (message "connecting wireless..."))
     ((wicd-wired-command "CheckIfWiredConnecting")
-     (message-no-timeout "connecting wired..."))
+     (message "connecting wired..."))
     (t (setf (timer-repeat *wicd-connection-status-timer*) nil)
        (message "~A" (if connecting-wired
                          (wicd-wired-command "CheckWiredConnectingMessage")
