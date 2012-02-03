@@ -1,18 +1,32 @@
 Stumpwm helpers etc.
 
 * wicd
-The wicd commands are as follows:
+The basic commands are as follows:
 - wicd-connect --- provides a menu to select the desired network
 - wicd-disconnect --- disconnect from whatever is currently active
 - wicd-scan-and-connect --- performs wireless scan first, then supplies menu prompt
-  
-The basic functions should be portable.
 
-Additionally there is a status report that displays after attempting a
-new connection. For the master branch, it is only provided for sbcl
-and ccl currently. In the dbus branch, it should work everywhere that
-the dbus library works.
+** master branch  
+There is a status report that displays after attempting a new
+connection. It is only provided for sbcl and ccl currently. It is
+disabled by default because it will block during the connection
+procedure. To enable it:
 
-To use the dbus branch you must first install:
+#+BEGIN_SRC lisp
+(setf *wicd-connection-display-status* t)
+#+END_SRC
+
+** dbus branch
+This is where most of my effort is focused and is the way forward. The
+issue now is one of dependencies and installation. The canonical dbus
+provided with quicklisp currently does not work with this branch due
+to it not providing an auth method suitable for the system bus. To use
+the dbus branch you must first install this fork:
 https://github.com/lucashpandolfo/dbus
+
+See [[http://blog.quicklisp.org/2011/11/november-quicklisp-updates.html][quicklisp local projects]] for one method of installing the fork.
+
+Once that's done, the commands are the same as listed above, with one
+notable addition: add %Y to your mode-line format to enable a status
+display.
 
