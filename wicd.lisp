@@ -39,7 +39,6 @@
 
 (defvar *wicd-current-network-color* 2 "Index of *colors* to use in menu for the currently connected network")
 (defvar *wicd-wired-network-name* "wired" "What to call the wired network in the menu")
-(defvar *wicd-connection-status-timer* nil "Monitors output when attempting to connect to a network")
 
 (defun wicd-command (path interface name &rest args)
   (dbus:with-open-bus (bus (dbus:system-server-addresses))
@@ -84,22 +83,7 @@
     (when network
       (if connecting-wired
           (wicd-wired-command "ConnectWired")
-          (wicd-wireless-command "ConnectWireless" `((:int32) ,(parse-integer network))))
-      (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
-      (setf *wicd-connection-status-timer*
-            (run-with-timer 1 1 (lambda () (wicd-monitor-connection-status connecting-wired)))))))
-
-(defun wicd-monitor-connection-status (connecting-wired)
-  "displays basic connection status information"
-  (cond
-    ((wicd-wireless-command "CheckIfWirelessConnecting")
-     (message "connecting wireless..."))
-    ((wicd-wired-command "CheckIfWiredConnecting")
-     (message "connecting wired..."))
-    (t (setf (timer-repeat *wicd-connection-status-timer*) nil)
-       (message "~A" (if connecting-wired
-                         (wicd-wired-command "CheckWiredConnectingMessage")
-                         (wicd-wireless-command "CheckWirelessConnectingMessage"))))))
+          (wicd-wireless-command "ConnectWireless" `((:int32) ,(parse-integer network)))))))
 
 (defun wicd-decorate-essid (essid is-current)
   (concat "^["
