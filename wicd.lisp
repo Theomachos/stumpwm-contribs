@@ -24,6 +24,8 @@
 ;;
 ;; (load-module "wicd")
 ;;
+;; You can use "%Y" in your mode line format to display status.
+;;
 ;; Requires lucashpandolfo/dbus
 ;; code at https://github.com/lucashpandolfo/dbus
 ;; One way to use it is quicklisp local projects.
@@ -125,5 +127,23 @@
                                     (or (wicd-get-wireless-property n "encryption_method") "None") " "
                                     (write-to-string (wicd-get-wireless-property n "quality")) "%") 
                                    (write-to-string n))))))
+
+(defun fmt-wicd (ml)
+  (declare (ignore ml))
+  (concat "wicd: "
+          (or
+           (cond
+             ((wicd-wireless-command "CheckIfWirelessConnecting")
+              (wicd-wireless-command "CheckWirelessConnectingMessage"))
+             ((wicd-wired-command "CheckIfWiredConnecting")
+              (wicd-wired-command "CheckWiredConnectingMessage"))
+             (t (let ((status-info (cadr (wicd-general-command "GetConnectionStatus"))))
+                  (unless (string= "" (car status-info))
+                    (concat (cadr status-info) " " (caddr status-info) "%")))))
+           "None")))
+
+;;; add mode-line formatter
+
+(add-screen-mode-line-formatter #\Y 'fmt-wicd)
 
 ;;; End of file
