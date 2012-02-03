@@ -20,12 +20,16 @@
 
 ;;; Usage:
 ;;
-;; Just add the following line to your .stumpwmrc file:
+;; Add the following line to your .stumpwmrc file:
 ;;
 ;; (load-module "wicd")
 ;;
-;; Requires wicd-cli to be installed on the system
+;; Requires lucashpandolfo/dbus
+;; code at https://github.com/lucashpandolfo/dbus
+;; One way to use it is quicklisp local projects.
 ;;
+;; It is hoped that a pull request will make it into the canonical
+;; version.
 
 ;;; Code:
 
@@ -33,100 +37,92 @@
 
 (defvar *wicd-current-network-color* 2 "Index of *colors* to use in menu for the currently connected network")
 (defvar *wicd-wired-network-name* "wired" "What to call the wired network in the menu")
-(defvar *wicd-cli-program-path* "/usr/bin/wicd-cli" "Path to the wicd-cli executable script")
 (defvar *wicd-connection-status-timer* nil "Monitors output when attempting to connect to a network")
-(defvar *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
+
+(defun wicd-command (path interface name &rest args)
+  (dbus:with-open-bus (bus (dbus:system-server-addresses))
+    (dbus:with-introspected-object (wicd-service bus path "org.wicd.daemon")
+      (apply #'wicd-service interface name args))))
+
+(defun wicd-wireless-command (name &rest args)
+  (apply #'wicd-command "/org/wicd/daemon/wireless" "org.wicd.daemon.wireless" name args))
+
+(defun wicd-wired-command (name &rest args)
+  (apply #'wicd-command "/org/wicd/daemon/wired" "org.wicd.daemon.wired" name args))
+
+(defun wicd-general-command (name &rest args)
+  (apply #'wicd-command "/org/wicd/daemon" "org.wicd.daemon" name args))
+
+(defun wicd-get-wireless-property (network-number property)
+  (wicd-wireless-command "GetWirelessProperty" 
+                         `((:int32) ,network-number) `((:string) ,property)))
 
 (defcommand wicd-disconnect () ()
   "disconnect wicd"
-  (run-shell-command "wicd-cli -x"))
+  (wicd-general-command "Disconnect"))
 
 (defcommand wicd-scan-and-connect () ()
   "Scans for networks and then presents menu of possibilities"
   (message "Scanning for list of networks...")
-  (wicd-c (run-shell-command "wicd-cli --wireless -Sl" t)))
+  (wicd-wireless-command "Scan" '((:boolean) t))
+  (wicd-c))
 
 (defcommand wicd-connect () ()
   "Presents menu of possibilities based on most recent scan"
   (message "Retrieving list of networks...")
-  (wicd-c (run-shell-command "wicd-cli --wireless -l" t)))
+  (wicd-c))
 
-(defun wicd-c (wicd-cache-string)
-  "Allow the user to select a network from a list
-Expects WICD-CACHE-STRING formatted as from wicd-cli -l output"
-  (let ((network (second (select-from-menu
-                          (current-screen)
-                          (build-wicd-network-list wicd-cache-string)))))
-    (when network (connect-wicd network))))
-
-(defun connect-wicd (network-number)
-  "connect wicd to the specified network by wicd number
-NETWORK-NUMBER expects a sequence"
-  (let ((args (if (equalp network-number *wicd-wired-network-name*)
-                  '("--wired" "-c")
-                  `("--wireless" "-c" "-n" ,network-number))))
-    (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
-    (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
-    (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
+(defun wicd-c ()
+  "Allow the user to select a network from a list"
+  (let* ((network (second (select-from-menu
+                           (current-screen)
+                           (wicd-build-network-list))))
+         (connecting-wired (equalp network *wicd-wired-network-name*)))
+    (when network
+      (if connecting-wired
+          (wicd-wired-command "ConnectWired")
+          (wicd-wireless-command "ConnectWireless" `((:int32) ,(parse-integer network))))
+      (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
       (setf *wicd-connection-status-timer*
-            (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
+            (run-with-timer 1 1 (lambda () (wicd-monitor-connection-status connecting-wired)))))))
 
-(defun monitor-wicd-connection-status (proc-var)
-  "expects PROC-VAR a process structure / object implementation
-collects process output and displays it line by line in a message"
-  (setf *wicd-connection-status-output*
-        (concat *wicd-connection-status-output* (string #\Newline)
-                (handler-case (read-line
-                               #+sbcl (sb-ext:process-pty proc-var)
-                               #+ccl  (ccl:process-output proc-var)
-                               nil nil)
-                              (stream-error (e)))))
-  (message "~A" *wicd-connection-status-output*)
-  (unless
-    #+sbcl (sb-ext:process-alive-p proc-var)
-    #+ccl  (not (ccl:process-exhausted-p proc-var))
-    (setf (timer-repeat *wicd-connection-status-timer*) nil)
-    (message "~A" (concat *wicd-connection-status-output* (string #\Newline) "wicd-cli finished")))
-  #-(or ccl sbcl)
-  (progn
-    (setf (timer-repeat *wicd-connection-status-timer*) nil)
-    (message "~A" "Connecting, status monitoring unimplemented for your lisp implementation ...")))
+(defun wicd-monitor-connection-status (connecting-wired)
+  "displays basic connection status information"
+  (cond
+    ((wicd-wireless-command "CheckIfWirelessConnecting")
+     (message-no-timeout "connecting wireless..."))
+    ((wicd-wired-command "CheckIfWiredConnecting")
+     (message-no-timeout "connecting wired..."))
+    (t (setf (timer-repeat *wicd-connection-status-timer*) nil)
+       (message "~A" (if connecting-wired
+                         (wicd-wired-command "CheckWiredConnectingMessage")
+                         (wicd-wireless-command "CheckWirelessConnectingMessage"))))))
 
-(defun build-wicd-network-list (wicd-cache-string)
-  "builds a list from wicd-cli -l output suitable for use with select-from-menu"
-  (let ((current-essid (get-wicd-current-essid)))
-    (mapcar (lambda (v) (let ((essid (elt v 1))
-                         (num   (elt v 0)))
-                     (list (concat "^["
-                                   (if (equalp essid current-essid)
-                                       (concat "^" (write-to-string *wicd-current-network-color*) "*")
-                                       "")
-                                   essid "^] "
-                                   (unless (equalp essid *wicd-wired-network-name*)
-                                     (concat
-                                      (get-wicd-network-property num "encryption_method") " "
-                                      (get-wicd-network-property num "quality") "%")))
-                           (elt v 0))))
-            (append `((,*wicd-wired-network-name* ,*wicd-wired-network-name*))
-                    (mapcar (lambda (s)
-                              (nth-value 1 (cl-ppcre:scan-to-strings
-                                            "(\\d\\d?)\\s+\\S\\S(?::\\S\\S){5}\\s+\\d+\\s+(\\S.+)" s)))
-                            (rest (split-string wicd-cache-string)))))))
-
-(defun get-wicd-network-property (network-number property)
-  (string-trim '(#\Space #\Newline #\Linefeed #\Tab)
-               (run-shell-command
-                (concat "wicd-cli --wireless -p " property " -n " network-number)
-                t)))
+(defun wicd-decorate-essid (essid is-current)
+  (concat "^["
+          (if is-current
+              (concat "^" (write-to-string *wicd-current-network-color*) "*")
+              "")
+          essid "^]"))
 
 (defun get-wicd-current-essid ()
-  (if (= 0 (length (run-shell-command "wicd-cli --wired -d" t)))
-      (let ((output (run-shell-command "wicd-cli --wireless -d" t)))
-        (unless (cl-ppcre:scan "^Invalid|^IP: None" output)
-          (elt (nth-value 1 (cl-ppcre:scan-to-strings
-                             "Essid: (\\S+)"
-                             (cl-ppcre:regex-replace-all "\\s+" output " ")))
-               0)))
-      *wicd-wired-network-name*))
+  (if (wicd-wired-command "GetWiredIP" '((:int32) 0))
+      *wicd-wired-network-name*
+      (wicd-wireless-command "GetCurrentNetwork" '((:int32) 0))))
+
+(defun wicd-build-network-list ()
+  "builds a list from wicd-cli -l output suitable for use with select-from-menu"
+  (let ((current-essid (get-wicd-current-essid)))
+    (append `((,(wicd-decorate-essid *wicd-wired-network-name*
+                                     (string= *wicd-wired-network-name* current-essid))
+               ,*wicd-wired-network-name*))
+            (loop for n to (1- (wicd-wireless-command "GetNumberOfNetworks")) 
+                  collecting (list (concat
+                                    (let ((essid (wicd-get-wireless-property n "essid")))
+                                      (wicd-decorate-essid essid (string= essid current-essid))) 
+                                    " "
+                                    (or (wicd-get-wireless-property n "encryption_method") "None") " "
+                                    (write-to-string (wicd-get-wireless-property n "quality")) "%") 
+                                   (write-to-string n))))))
 
 ;;; End of file
