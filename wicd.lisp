@@ -59,6 +59,7 @@
 
 (defcommand wicd-disconnect () ()
   "disconnect wicd"
+  (wicd-general-command "SetForcedDisconnect" '((:boolean) t))
   (wicd-general-command "Disconnect"))
 
 (defcommand wicd-scan-and-connect () ()
