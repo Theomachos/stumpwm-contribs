@@ -36,6 +36,9 @@
 (defvar *wicd-cli-program-path* "/usr/bin/wicd-cli" "Path to the wicd-cli executable script")
 (defvar *wicd-connection-status-timer* nil "Monitors output when attempting to connect to a network")
 (defvar *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
+(defvar *wicd-connection-display-status* nil "Set to t to enable the
+status display. The unfortunate tradeoff is that the display will
+block stumpwm")
 
 (defcommand wicd-disconnect () ()
   "disconnect wicd"
@@ -65,11 +68,12 @@ NETWORK-NUMBER expects a sequence"
   (let ((args (if (equalp network-number *wicd-wired-network-name*)
                   '("--wired" "-c")
                   `("--wireless" "-c" "-n" ,network-number))))
-    (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
     (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
-    (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
-      (setf *wicd-connection-status-timer*
-            (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var)))))))
+    (when *wicd-connection-display-status*
+      (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
+      (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
+        (setf *wicd-connection-status-timer*
+              (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var))))))))
 
 (defun monitor-wicd-connection-status (proc-var)
   "expects PROC-VAR a process structure / object implementation
