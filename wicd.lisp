@@ -69,9 +69,9 @@ NETWORK-NUMBER expects a sequence"
                   '("--wired" "-c")
                   `("--wireless" "-c" "-n" ,network-number))))
     (when (timer-p *wicd-connection-status-timer*) (cancel-timer *wicd-connection-status-timer*))
-    (when *wicd-connection-display-status*
-      (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
-      (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
+    (setf *wicd-connection-status-output* "Status: (if dhcp or validation takes long, check your settings)")
+    (let ((proc-var (run-prog *wicd-cli-program-path* :args args :output :stream :pty t :wait nil)))
+      (when *wicd-connection-display-status*
         (setf *wicd-connection-status-timer*
               (run-with-timer 1 1 (lambda () (monitor-wicd-connection-status proc-var))))))))
 
