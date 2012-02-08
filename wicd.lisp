@@ -123,7 +123,7 @@
               (wicd-wired-command "CheckWiredConnectingMessage"))
              (t (let ((status-info (cadr (wicd-general-command "GetConnectionStatus"))))
                   (unless (string= "" (car status-info))
-                    (concat (cadr status-info) " " (caddr status-info) "%")))))
+                    (format nil "~A ~3@A%" (cadr status-info) (caddr status-info))))))
            "None")))
 
 ;;; add mode-line formatter
