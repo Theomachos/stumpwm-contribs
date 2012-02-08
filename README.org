@@ -17,12 +17,17 @@ procedure. To enable it:
 #+END_SRC
 
 ** dbus branch
+NOTE: There is currently a critical bug on my system when using
+[[https://github.com/lucashpandolfo/dbus][lucashpandolfo/dbus]]. It involves a race condition that inevitably
+hangs the stumpwm thread after some time when using the mode line
+status display. I made a fork and so far the bug has not reoccurred,
+but more testing is needed.
+
 This is where most of my effort is focused and is the way forward. The
 issue now is one of dependencies and installation. The canonical dbus
 provided with quicklisp currently does not work with this branch due
 to it not providing an auth method suitable for the system bus. To use
-the dbus branch you must first install this fork:
-https://github.com/lucashpandolfo/dbus
+the dbus branch you must first install this fork: [[https://github.com/joseph-gay/dbus][joseph-gay/dbus]].
 
 See [[http://blog.quicklisp.org/2011/11/november-quicklisp-updates.html][quicklisp local projects]] for one method of installing the fork.
 
