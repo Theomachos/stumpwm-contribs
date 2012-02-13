@@ -116,14 +116,17 @@
   (declare (ignore ml))
   (concat "wicd: "
           (or
-           (cond
-             ((wicd-wireless-command "CheckIfWirelessConnecting")
-              (wicd-wireless-command "CheckWirelessConnectingMessage"))
-             ((wicd-wired-command "CheckIfWiredConnecting")
-              (wicd-wired-command "CheckWiredConnectingMessage"))
-             (t (let ((status-info (cadr (wicd-general-command "GetConnectionStatus"))))
-                  (unless (string= "" (car status-info))
-                    (format nil "~A ~3@A%" (cadr status-info) (caddr status-info))))))
+           (handler-case
+               (cond
+                 ((wicd-wireless-command "CheckIfWirelessConnecting")
+                  (wicd-wireless-command "CheckWirelessConnectingMessage"))
+                 ((wicd-wired-command "CheckIfWiredConnecting")
+                  (wicd-wired-command "CheckWiredConnectingMessage"))
+                 (t (let ((status-info (cadr (wicd-general-command "GetConnectionStatus"))))
+                      (unless (string= "" (car status-info))
+                        (format nil "~A ~3@A%" (cadr status-info) (caddr status-info))))))
+             (dbus:method-error (condition)
+               (message "~A~%If this persists, check the status of wicd." condition)))
            "None")))
 
 ;;; add mode-line formatter
